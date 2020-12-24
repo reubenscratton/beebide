@@ -1,31 +1,39 @@
 define(function (require) {
     var $ = require('jquery');
     require('vs/editor/editor.main');
+    var _ = require('underscore');
     var v6502 = require('6502');
-    var beebasm = require('beebasm');
+    var beebasm = require('beebasm-cli');
+    var projfiles = require('./starquake');
+
 
     monaco.languages.register({'id': '6502'});
     monaco.languages.setMonarchTokensProvider('6502', v6502);
     function Editor(container, state) {
         this.container = container;
         this.hub = container.layoutManager.eventHub;
-        this.project = null;
         var root = container.getElement().html($('#editor').html());
         this.editor = monaco.editor.create(root.find(".editor")[0], {
             value: '',
-            language: '6502'
+            language: '6502',
+            wordWrap: 'on',
+            minimap: {
+               enabled: false
+           }
         });
+        this.editor.getModel().setValue(state.file.data);
 
+/*
         this.editor.addAction({
             id: 'compile',
-            label: 'Compile The Project',
-            keybindings: [monaco.KeyMod.Ctrl | monaco.KeyCode.F9],
+            label: 'Compile',
+            keybindings: [monaco.KeyCode.F5],
             run: _.bind(function () {
                 this.compile();
                 return monaco.Promise.wrap(true);
             }, this)
         });
-
+*/
         this.container.on('resize', function () {
             this.editor.layout();
         }, this);
@@ -39,22 +47,38 @@ define(function (require) {
         }, this);
 
         this.hub.on('projectChange', this.onProjectChange, this);
+
+        //this.hub.on('fileSelected', this.onFileSelected, this);
     }
 
     Editor.prototype.compile = function () {
-        beebasm(this.project.buildArgs, this.project.files)
-            .then(_.bind(function (e) {
-                console.log("compiled:", e);
-                if (e.status === 0) this.hub.emit('start', e);
+        //this.project.files.update('starquake/starquake.asm', this.editor.getValue());
+        beebasm(this.project);
+                //console.log("compiled:", e);
+/*                this.hub.emit('compiled', e);
+                if (e.status === 0) {
+                    this.hub.emit('start', e);
+                } else {
+                    var lineNum = parseInt(e.stderr[0].match(/(?<=:)\d+(?=:)/)[0]);
+                    monaco.editor.setModelMarkers(this.editor.getModel(), 'test', [{
+                        startLineNumber: lineNum,
+                        startColumn: 1,
+                        endLineNumber: lineNum,
+                        endColumn: 1000,
+                        message: e.stderr[3],
+                        severity: monaco.MarkerSeverity.Error
+                    }]);
+                }
             }, this)).catch(function (e) {
-            console.log("error", e);
-        });
+                console.log("error", e);
+                this.hub.emit('compiled', e);
+            });*/
     };
 
     Editor.prototype.onProjectChange = function (project) {
         this.project = project;
-        console.log(project);
-        this.editor.getModel().setValue(project.files.load('samples/relocdemo.6502'));
+        this.editor.getModel().setValue(project.getMainFile());
+        this.compile();
     };
 
     return Editor;

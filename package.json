@@ -17,5 +17,8 @@
   "devDependencies": {
     "bower": "*"
   },
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "monaco-editor": "^0.21.2"
+  }
 }

@@ -1,68 +1,92 @@
-importScripts('vendor/requirejs/require.js');
-require.config({
-    paths: {
-        underscore: 'vendor/underscore/underscore'
-    },
-    shim: {
-        underscore: {exports: '_'}
-    }
-});
-
+var is_initialized = false;
 var pending = [];
-onmessage = function (event) {
-    pending.push(event);
-};
-// NB errors of the form 'importScripts failed for underscore at ...' are probably
-// exceptions thrown here...
-require(['./beebasm/beebasm', 'underscore'], function (BeebAsm, _) {
-    onmessage = function (event) {
-        event = event.data;
-        console.log(event);
-        try {
-            var stdout = [];
-            var stderr = [];
-            var status = -1;
-            var module = {
-                arguments: event.command,
-                preRun: function () {
-                    _.each(event.paths, function (path) {
-                        module.FS_createPath('/', path);
-                    });
-                    _.each(event.files, function (data, filename) {
-                        module.FS_createDataFile('/', filename, data, true, false, true);
-                    });
-                },
-                print: function (line) {
-                    stdout.push(line);
-                },
-                printErr: function (line) {
-                    stderr.push(line);
-                },
-                onExit: function (status_) {
-                    status = status_;
-                }
-            };
-            var before = Date.now();
-            BeebAsm(module);
-            var after = Date.now();
-            var result = null;
-            if (module.FS.stat(event.output))
-                result = module.FS.readFile(event.output);
-            postMessage({
-                id: event.id,
-                stdout: stdout,
-                stderr: stderr,
-                result: result,
-                status: status,
-                timeTaken: after - before
-            });
-        } catch (e) {
-            console.log(e);
-            postMessage({
-                id: event.id,
-                exception: e.toString()
-            });
+
+var Module = {
+    locateFile: function(s) {
+      return 'beebasm/' + s;
+    },
+    onRuntimeInitialized: function() {
+        is_initialized = true;
+        for (var pendingEvent in pending) {
+            onmessage(pendingEvent);
         }
+    }
+  };
+  
+importScripts('./beebasm/beebasm.js');
+
+
+
+function hexToBytes(hexString) {
+    var result = new Uint8Array(hexString.length/2);
+    for (var i = 0; i < hexString.length; i += 2) {
+        result[i/2] = parseInt(hexString.substr(i, 2), 16);
+    }
+    return result;
+}
+
+function registerFS(module, files, dir) {
+    //dir += "/";
+    for (var fileName in files) {
+        var val = files[fileName];
+        if (Object.prototype.toString.call(val) === '[object String]') {
+            var isBinary = fileName.endsWith(".bmp") || fileName.endsWith(".bin");
+            var rawVal = isBinary ? hexToBytes(val) : val;
+            Module.FS_createDataFile(dir, fileName, rawVal, true, false, true);
+        }
+        else {
+            Module.FS_createPath(dir, fileName);
+            var newdir = dir.length ? (dir + '/' + fileName) : fileName;
+            registerFS(module, val, newdir);
+        }            
+    }
+}
+
+
+onmessage = function (event) {
+    if (!is_initialized) {
+        pending.push(event);
+        return;
+    }
+    var stdout = [];
+    var stderr = [];
+    var status = -1;
+    Module.print = function (line) {
+        stdout.push(line);
     };
-    _.each(pending, onmessage);
-});
+    Module.printErr = function (line) {
+        stderr.push(line);
+    }
+
+    event = event.data;
+    //try {
+
+        registerFS(Module, event.project.files, "");
+    
+        var before = Date.now();        
+
+        
+        compileFn = Module.cwrap('beebide_compile', 'number', ['string', 'string', 'string']);
+        status = compileFn(event.project.mainFilename, event.project.bootFilename, 'output.ssd');
+
+        var after = Date.now();
+        var result = null;
+        if (Module.FS.stat(event.output))
+            result = Module.FS.readFile(event.output);
+        postMessage({
+            id: event.id,
+            stdout: stdout,
+            stderr: stderr,
+            result: result,
+            status: status,
+            timeTaken: after - before
+        });
+    /*} catch (e) {
+        console.log(e);
+        console.log(stderr);
+        postMessage({
+            id: event.id,
+            exception: e.toString()
+        });
+    }*/
+};
