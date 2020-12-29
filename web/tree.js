@@ -2,7 +2,7 @@ define(function (require) {
     var $ = require('jquery');
     require('jstree');
     var _ = require('underscore');
-
+    var primaryNode;
 
     function Tree(container, state) {
         this.container = container;
@@ -57,6 +57,9 @@ define(function (require) {
                 if (fileName.endsWith(".bmp")) node.icon = "images/ic_bmp.png";
                 else if (fileName.endsWith(".bin")) node.icon = "images/ic_bin.png";
                 else node.icon = node.isPrimary ? "images/ic_asm_main.png" : "images/ic_asm.png";
+                if (node.isPrimary) {
+                    primaryNode = node;
+                }
             } else {
                 node.state =  {
                     opened : true
@@ -74,6 +77,9 @@ define(function (require) {
         addToTree(root, project.files);
         this.tree.settings.core.data = root.children;
         this.tree.refresh();
+
+        this.container.layoutManager.eventHub.emit('fileSelected', primaryNode);
+
     };
 
     return Tree;

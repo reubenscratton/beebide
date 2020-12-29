@@ -295,7 +295,10 @@ define(function (require) {
     function Emulator(container, state) {
         this.container = container;
         this.hub = container.layoutManager.eventHub;
-        this.root = container.getElement().html($('#emulator').html());
+    }
+
+    Emulator.prototype.init = function() {
+        this.root = this.container.getElement().html($('#emulator').html());
         this.canvas = canvasLib.bestCanvas(this.root.find('.screen')[0]);
         this.frames = 0;
         this.frameSkip = 0;
@@ -354,7 +357,50 @@ define(function (require) {
         }, this);
 
         this.hub.on('start', this.onStart, this);
+
+        // Start!
+        cpu.reset(true);
+        this.start();
+
     }
+
+    Emulator.prototype.stepUntil = function(f) {
+        cpu.targetCycles = cpu.currentCycles; // TODO: this prevents the cpu from running any residual cycles. look into a better solution
+        for (var i = 0; i < 65536; i++) {
+            cpu.execute(1);
+            if (f()) break;
+        }
+        this.dbgr.debug(cpu.pc);
+    }
+    Emulator.prototype.breakIn = function () {
+        if (!this.running) {
+            $("#break").text('Break');
+            this.soundChip.unmute();
+            this.start();
+        } else {
+            $("#break").text('Run');
+            this.running = false;
+            this.soundChip.mute();
+            stop(true);
+            this.dbgr.debug(cpu.pc);
+        }
+    };
+    Emulator.prototype.stepIn = function () {
+        var curpc = cpu.pc;
+        this.stepUntil(function () {
+            return cpu.pc !== curpc;
+        });
+    };
+    Emulator.prototype.stepOver = function () {
+        var curpc = cpu.pc;
+        if (0x20 === cpu.peekmem(curpc)) { // JSR
+            this.stepUntil(function () {
+                return cpu.pc === curpc+3;
+            });    
+        } else {
+            this.stepIn();
+        }
+    };
 
     Emulator.prototype.start = function () {
         if (this.running) return;
@@ -449,9 +495,9 @@ define(function (require) {
     };
 
     Emulator.prototype.resizeScreen = function () {
-        var canvasRatio = 696.0 / 800.0;
+        var canvasRatio = 696.0 / 900.0;
         var parentWidth = this.container.width;
-        var parentHeight = this.container.height;
+        var parentHeight = this.container.height - 40;
         var parentRatio = parentHeight / parentWidth;
         var width;
         var height;

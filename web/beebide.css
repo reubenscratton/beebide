@@ -53,3 +53,62 @@ body {
 .navbar li a:hover {
     background-color: #444;
 }
+
+.btn {
+  background-color: DodgerBlue;
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Darker background on mouse-over */
+.btn:hover {
+  background-color: RoyalBlue;
+}
+
+#dis, #mem, #hw {
+    height: 100%;
+    width: 100%;
+    background-color: white;
+    padding: 8pt; 
+    font-size:10pt; 
+    font-family:Menlo, Monaco, 'Courier New', Courier, monospace
+}
+
+.instr_bytes {
+    display: inline-block;
+    width: 6em;
+    color: #d0d0d0;
+}
+.mem_bytes {
+    display: inline-block;
+    width: 16em;
+    color: #a0a0a0;
+}
+.dis_addr {
+    display: inline-block;
+    width: 3em;
+    color: #66f;
+}
+.instr_mem_ref, .instr_instr_ref {
+    cursor: pointer;
+    color: #66f;
+}
+.current {
+    background-color: #c2f7f7;
+    font-weight: bold;
+}
+
+.highlight {
+    border: 1px solid #ddd;
+}
+
+.changed {
+    background-color: #f7a2a2;
+}
+h6.dbg { text-align: center }
+.via_regs {
+    display: inline-block;
+}
