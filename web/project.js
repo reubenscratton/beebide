@@ -16,7 +16,7 @@ define(function (require) {
             var dir = this.files;
             while (id.length > 0) {
                 id = id.substring(1);
-                var foo = id.split("/", 1);
+                var foo = id.split("/");
                 if (foo.length > 1) {
                     dir = dir[foo[0]];
                     id = "/" + foo[1];
