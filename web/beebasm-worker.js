@@ -1,5 +1,7 @@
 var is_initialized = false;
 var pending = [];
+var stdout = [];
+var stderr = [];
 
 var Module = {
     locateFile: function(s) {
@@ -10,11 +12,18 @@ var Module = {
         for (var pendingEvent in pending) {
             onmessage(pendingEvent);
         }
+    },
+    print: function (line) {
+        stdout.push(line);
+    },
+    printErr:function (line) {
+        stderr.push(line);
     }
-  };
+};
   
 importScripts('./beebasm/beebasm.js');
 
+var compileFn = Module.cwrap('beebide_compile', 'number', ['string', 'string', 'string']);
 
 
 function hexToBytes(hexString) {
@@ -53,15 +62,9 @@ onmessage = function (event) {
         pending.push(event);
         return;
     }
-    var stdout = [];
-    var stderr = [];
+    stdout = [];
+    stderr = [];
     var status = -1;
-    Module.print = function (line) {
-        stdout.push(line);
-    };
-    Module.printErr = function (line) {
-        stderr.push(line);
-    }
 
     event = event.data;
     //try {
@@ -71,7 +74,6 @@ onmessage = function (event) {
         var before = Date.now();        
 
         
-        compileFn = Module.cwrap('beebide_compile', 'number', ['string', 'string', 'string']);
         status = compileFn(event.project.mainFilename, event.project.bootFilename, 'output.ssd');
 
         var after = Date.now();

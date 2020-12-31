@@ -12,8 +12,14 @@ body {
 }
 
 .console {
+    background-color: white;
     height: 100%;
     width: 100%;
+    padding: 8pt; 
+    font-size:10pt; 
+    font-family:Menlo, Monaco, 'Courier New', Courier, monospace;
+    text-align: justify;
+    overflow: auto;
 }
 
 .editor {

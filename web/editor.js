@@ -19,7 +19,7 @@ define(function (require) {
                enabled: false
            }
         });
-        this.editor.getModel().setValue(state.file.data);
+        this.editor.getModel().setValue(project.getFileContents(state.file.id));
 
 /*
         this.editor.addAction({
@@ -38,6 +38,7 @@ define(function (require) {
 
         this.container.on('shown', function () {
             this.editor.layout();
+            this.onErrorsChanged();
         }, this);
 
         this.container.on('destroy', function () {
@@ -47,8 +48,28 @@ define(function (require) {
         //this.hub.on('projectChange', this.onProjectChange, this);
 
         //this.hub.on('fileSelected', this.onFileSelected, this);
+
+        this.hub.on('errorsChanged', this.onErrorsChanged, this);
     }
 
+    Editor.prototype.onErrorsChanged = function() {
+        var markers = [];
+        for (var e of project.errors) {
+            if (e.srcfile !== this.container._config.componentState.file.id.substring(1)) {
+                continue;
+            }
+            markers.push({
+                startLineNumber: e.lineNum,
+                startColumn: 1,
+                endLineNumber: e.lineNum,
+                endColumn: 1000,
+                message: e.message,
+                severity: monaco.MarkerSeverity.Error
+            });
+        }
+        monaco.editor.setModelMarkers(this.editor.getModel(), 'test', markers);
+
+    }
 
     /*Editor.prototype.onProjectChange = function (project) {
         this.project = project;

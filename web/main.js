@@ -23,7 +23,44 @@ var layout;
 var eventHub;
 var emulator;
 var project;
-var beebasm;
+var log;
+
+
+function navTo(srcfile, lineNum) {
+    alert('Navving to ' + srcfile + ' line ' + lineNum);
+}
+
+// Beebasm Worker
+var beebasm = new Worker("beebasm-worker.js");
+beebasm.onmessage = function (event) {
+
+    // Handle errors
+    var stderr = event.data.stderr;
+    if (stderr.length) {
+        for (var i=0 ; i<stderr.length ; i++) {
+            var line = stderr[i];
+            var textNode = document.createTextNode(line);
+            var errMatch = line.match(/(.*):(\d+)(.*)/);
+            if (errMatch) {
+                var error = {
+                    srcfile: errMatch[1],
+                    lineNum: parseInt(errMatch[2]),
+                    message: errMatch[3]
+                };
+                project.errors.push(error);
+                var a = document.createElement('a');
+                a.appendChild(textNode);
+                a.href = "javascript:navTo('" + error.srcfile + "'," + error.lineNum + ");";
+                textNode = a;
+            }
+            log.appendChild(textNode);
+        }
+        eventHub.emit('errorsChanged');
+    }
+    if (event.data.status === 0) {
+        eventHub.emit('start', event.data);
+    }
+};
 
 function buildAndBoot() {
 
@@ -33,27 +70,13 @@ function buildAndBoot() {
         project.updateFile(item.config.componentState.file.id, item.instance.editor.getValue());
     }
 
-    //this.project.files.update('starquake/starquake.asm', this.);
-    beebasm(project);
-            //console.log("compiled:", e);
-/*                this.hub.emit('compiled', e);
-            if (e.status === 0) {
-                this.hub.emit('start', e);
-            } else {
-                var lineNum = parseInt(e.stderr[0].match(/(?<=:)\d+(?=:)/)[0]);
-                monaco.editor.setModelMarkers(this.editor.getModel(), 'test', [{
-                    startLineNumber: lineNum,
-                    startColumn: 1,
-                    endLineNumber: lineNum,
-                    endColumn: 1000,
-                    message: e.stderr[3],
-                    severity: monaco.MarkerSeverity.Error
-                }]);
-            }
-        }, this)).catch(function (e) {
-            console.log("error", e);
-            this.hub.emit('compiled', e);
-        });*/
+    // Clear existing errors
+    log.innerHTML = "";
+    project.errors = [];
+    eventHub.emit('errorsChanged');
+
+    // Send project to Beebasm worker
+    beebasm.postMessage({project: project, output: 'output.ssd'});
 };
 
 define(function (require) {
@@ -62,12 +85,10 @@ define(function (require) {
     var GoldenLayout = require('goldenlayout');
     var $ = require('jquery');
     var Project = require('./project');
-    var Console = require('./console');
     var Editor = require('./editor');
     var Emulator = require('./emulator');
     var Tree = require('./tree');
     project = new Project('./starquake', 'starquake.asm', 'quake');
-    beebasm = require('beebasm-cli');
     var projfiles = require('./starquake');
 
     var treeAndEditor = {
@@ -85,6 +106,7 @@ define(function (require) {
         {
             type: 'stack', 
             id:'editorStack', 
+            isClosable: false,
             width: 75, 
             content: []
         }
@@ -162,7 +184,9 @@ define(function (require) {
         return emulator;
     });
     layout.registerComponent('console', function (container, state) {
-        return new Console(container, state);
+        var root = container.getElement().html($('#console').html());
+        log = root.find(".console")[0];
+        return log;
     });
     layout.registerComponent('dbgDis', function( container, state ){
         container.getElement().load('dbg_dis.html'); 
