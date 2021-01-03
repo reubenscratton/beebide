@@ -77,8 +77,9 @@ define(function (require) {
         this.tree.settings.core.data = root.children;
         this.tree.refresh();
 
-        this.container.layoutManager.eventHub.emit('fileSelected', primaryNode);
-
+        if (primaryNode !== undefined) {
+            this.container.layoutManager.eventHub.emit('fileSelected', primaryNode);
+        }
     };
 
     return Tree;

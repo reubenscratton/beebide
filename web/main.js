@@ -24,6 +24,7 @@ var eventHub;
 var emulator;
 var project;
 var log;
+var breakpoints = [];
 
 
 function navTo(srcfile, lineNum) {
@@ -33,6 +34,23 @@ function navTo(srcfile, lineNum) {
 // Beebasm Worker
 var beebasm = new Worker("beebasm-worker.js");
 beebasm.onmessage = function (event) {
+
+    // Single breakpoint resolved
+    if (event.data.action === 'bp') {
+        for (var bp of breakpoints) {
+            if (bp.addr === event.data.bp.addr) {
+                bp.fileId = event.data.bp.fileId;
+                bp.lineNum = event.data.bp.lineNum;
+                bp.col = event.data.bp.col;
+            }
+            else if (bp.lineNum === event.data.bp.lineNum &&
+                bp.fileId === event.data.bp.fileId) {
+                bp.addr = event.data.bp.addr;
+            }
+        }
+        eventHub.emit('breakpointsChanged');
+        return;
+    }
 
     // Handle errors
     var stderr = event.data.stderr;
@@ -57,7 +75,13 @@ beebasm.onmessage = function (event) {
         }
         eventHub.emit('errorsChanged');
     }
+
+    // If compilation succeeded, boot the disk
     if (event.data.status === 0) {
+
+        breakpoints = event.data.breakpoints;
+        eventHub.emit('breakpointsChanged');
+
         eventHub.emit('start', event.data);
     }
 };
@@ -75,9 +99,49 @@ function buildAndBoot() {
     project.errors = [];
     eventHub.emit('errorsChanged');
 
+    // Unset all source breakpoints
+    for (var bp of breakpoints) {
+        if (bp.lineNum > 0) {
+            bp.addr = -1;
+        }
+    }
+
     // Send project to Beebasm worker
-    beebasm.postMessage({project: project, output: 'output.ssd'});
+    beebasm.postMessage({project: project, breakpoints:breakpoints, output: 'output.ssd'});
 };
+
+function toggleBreakpoint(bp) {
+    for (var i=0 ; i<breakpoints.length ; i++) {
+        if (breakpoints[i].fileId === bp.fileId
+            && breakpoints[i].lineNum === bp.lineNum
+            && breakpoints[i].col === bp.col) {
+            breakpoints.splice(i,1);
+            eventHub.emit('breakpointsChanged');
+            return false;
+        }
+    }
+    breakpoints.push(bp);
+    beebasm.postMessage({ action:'bp', bp: bp });
+    return true;
+}
+function toggleBreakpointOnAddr(addr) {
+    for (var i=0 ; i<breakpoints.length ; i++) {
+        if (breakpoints[i].addr === addr) {
+            breakpoints.splice(i,1);
+            eventHub.emit('breakpointsChanged');
+            return false;
+        }
+    }
+    var bp = {
+        addr: addr,
+        fileId: null,
+        lineNum: -1,
+        col: -1,
+    };
+    breakpoints.push(bp);
+    beebasm.postMessage({ action:'bp', bp: bp });
+    return true;
+}
 
 define(function (require) {
     "use strict";
@@ -88,8 +152,9 @@ define(function (require) {
     var Editor = require('./editor');
     var Emulator = require('./emulator');
     var Tree = require('./tree');
-    project = new Project('./starquake', 'starquake.asm', 'quake');
-    var projfiles = require('./starquake');
+    project = new Project('./starquake.json', 'starquake.asm', 'quake');
+    //var projfiles = require('./starquake');
+
 
     var treeAndEditor = {
         type: 'row',
@@ -228,8 +293,6 @@ define(function (require) {
         $(window).resize(sizeRoot);
         sizeRoot();
     }, 100);
-
-    eventHub.emit('projectChange', project);
 
 
 });

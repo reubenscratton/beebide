@@ -24,6 +24,10 @@ var Module = {
 importScripts('./beebasm/beebasm.js');
 
 var compileFn = Module.cwrap('beebide_compile', 'number', ['string', 'string', 'string']);
+var dbgGetAddrFn = Module.cwrap('beebide_dbgGetAddr', 'number', ['string', 'number', 'number']);
+var dbgGetFileFn = Module.cwrap('beebide_dbgGetFile', 'string', ['number']);
+var dbgGetLineFn = Module.cwrap('beebide_dbgGetLine', 'number', ['number']);
+var dbgGetColFn = Module.cwrap('beebide_dbgGetCol', 'number', ['number']);
 
 
 function hexToBytes(hexString) {
@@ -67,6 +71,35 @@ onmessage = function (event) {
     var status = -1;
 
     event = event.data;
+
+    // Resolve breakpoint
+    if (event.action === 'bp') {
+        var bp = event.bp;
+        if (bp.fileId) {
+            bp.addr = dbgGetAddrFn(bp.fileId, bp.lineNum, bp.col);
+        } else {
+            bp.fileId = dbgGetFileFn(bp.addr);
+            bp.lineNum = dbgGetLineFn(bp.addr);
+            bp.col = dbgGetColFn(bp.addr);
+        }
+        postMessage({
+            action: 'bp',
+            bp: bp
+        });
+        return;
+    }
+
+    // Find source location for address
+    if (event.action === 'dbgsym') {
+        var addr = event.addr;
+        postMessage({
+            file: dbgGetFileFn(addr),
+            line: dbgGetLineFn(addr),
+            col: dbgGetColFn(addr),
+        });
+        return;
+    }
+
     //try {
 
         registerFS(Module, event.project.files, "");
@@ -78,14 +111,27 @@ onmessage = function (event) {
 
         var after = Date.now();
         var result = null;
-        if (Module.FS.stat(event.output))
+        if (Module.FS.stat(event.output)) {
             result = Module.FS.readFile(event.output);
+        }
+
+
+        // If build succeeded, resolve any source breakpoints
+        if (0 === status) {
+            for (var bp of event.breakpoints) {
+                if (bp.addr < 0) {
+                    bp.addr = dbgGetAddrFn(bp.fileId, bp.lineNum, bp.col);
+                }
+            }
+        }
+
         postMessage({
             id: event.id,
             stdout: stdout,
             stderr: stderr,
             result: result,
             status: status,
+            breakpoints: event.breakpoints,
             timeTaken: after - before
         });
     /*} catch (e) {

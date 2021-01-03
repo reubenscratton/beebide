@@ -3,7 +3,12 @@ define(function (require) {
     return class Project {
 
         constructor(filePath, mainFilename, bootFilename) {
-            this.files = require(filePath);
+            var self = this;
+            $.getJSON(filePath, function(json) {
+                self.files = json;
+                eventHub.emit('projectChange', self);
+
+            });
             this.mainFilename = mainFilename;
             this.bootFilename = bootFilename;
         }
@@ -42,6 +47,7 @@ define(function (require) {
                 break;
             }
         }
+
     };
 
  
